@@ -109,17 +109,17 @@ func main() {
 		repositoryPath = kingpin.Flag(
 			"repository",
 			"Path to store cached AWS billing reports",
-		).Default("/var/lib/aws-billing-reports/repository").String()
+		).Default("/var/lib/aws-cost-exporter/repository").String()
 
 		queriesPath = kingpin.Flag(
 			"queries-dir",
 			"Path to directory with SQL queries for gathering metrics",
-		).Default("/var/lib/aws-billing-reports/queries").String()
+		).Default("/etc/aws-cost-exporter/queries").String()
 
 		stateFilePath = kingpin.Flag(
 			"state-path",
 			"Path to store exporter state",
-		).Default("/var/lib/aws-billing-reports/state.json").String()
+		).Default("/var/lib/aws-cost-exporter/state.json").String()
 
 		listenAddress = kingpin.Flag(
 			"web.listen-address",

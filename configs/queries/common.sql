@@ -1,5 +1,5 @@
 select
-    (`bill/BillingPeriodStartDate` || `bill/BillingPeriodEndDate`)  as `period`,
+    (`bill/BillingPeriodStartDate` || "-" || `bill/BillingPeriodEndDate`)  as `period`,
 
     `product/ProductName` as `product`,
     `lineItem/Operation` as `operation`,
