@@ -1,3 +1,4 @@
 .vscode
 
 ./aws-cost-exporter
+./result
