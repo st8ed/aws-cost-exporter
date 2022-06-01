@@ -80,7 +80,7 @@ func ingestMetrics(registry *prometheus.Registry, rows *sql.Rows) error {
 	}
 
 	if len(columns) == 0 {
-		return errors.New("Malformed query: there are no columns in result set")
+		return errors.New("malformed query: there are no columns in result set")
 	}
 
 	labelNames := make([]string, 0)
