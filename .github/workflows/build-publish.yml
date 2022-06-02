@@ -1,0 +1,90 @@
+name: "Build & Publish"
+on: [ pull_request, push ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: cachix/install-nix-action@v17
+      with:
+        nix_path: nixpkgs=channel:nixos-unstable
+
+    - uses: cachix/cachix-action@v10
+      with:
+        name: st8ed-oss
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+    - run: nix build .#package
+    - run: echo "PACKAGE_PATH=$(readlink -f result)" >>$GITHUB_ENV
+    - run: nix build .#dockerImage
+    - run: echo "IMAGE_PATH=$(readlink -f result)" >>$GITHUB_ENV
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: aws-cost-exporter
+        path: ${{ env.PACKAGE_PATH }}
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: aws-cost-exporter-image
+        path: ${{ env.IMAGE_PATH }}
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write # For GitHub Container Registry
+      contents: write # For GitHub Releases
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: aws-cost-exporter
+        path: ./dist/release
+
+    - uses: actions/download-artifact@v3
+      with:
+        name: aws-cost-exporter-image
+        path: ./dist/image
+
+    - name: Retrieve version
+      run: |
+        VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+        VERSION=$(echo $VERSION | sed -e 's/^v//')
+        # [ "$VERSION" == "master" ] && VERSION=latest
+
+        echo "VERSION=$VERSION" >>$GITHUB_ENV
+        echo "VERSION=$VERSION"
+
+    - name: Package release
+      run: |
+        tar cf ./dist/aws-exporter-$VERSION.linux-amd64.tar.gz -C ./dist/release .
+
+    - name: Push image
+      run: |
+        IMAGE_NAME=st8ed/aws-cost-exporter
+        IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+
+        echo IMAGE_NAME=$IMAGE_NAME
+        echo IMAGE_ID=$IMAGE_ID
+
+        echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+
+        docker load -i ./dist/image/*.tar.gz
+
+        docker tag $IMAGE_NAME:$VERSION $IMAGE_ID:$VERSION
+        docker push $IMAGE_ID:$VERSION
+
+        docker tag $IMAGE_NAME:$VERSION $IMAGE_ID:latest
+        docker push $IMAGE_ID:latest
+
+    - name: Create release
+      uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5
+      with:
+        name: Release ${{ env.VERSION }}
+        files: ./dist/aws-exporter-*.tar.gz
+        fail_on_unmatched_files: true
+        generate_release_notes: true
+        prerelease: true
