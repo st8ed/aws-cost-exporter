@@ -1,4 +1,3 @@
-.vscode
-
-./aws-cost-exporter
-./result
+/.vscode
+/aws-cost-exporter
+/result
