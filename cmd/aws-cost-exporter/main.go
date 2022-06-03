@@ -27,7 +27,6 @@ import (
 
 	"github.com/prometheus/exporter-toolkit/web"
 
-	_ "github.com/mithrandie/csvq-driver"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 

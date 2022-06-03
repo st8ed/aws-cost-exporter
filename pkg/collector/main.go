@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	_ "github.com/mithrandie/csvq-driver"
 )
 
 func Prefetch(
