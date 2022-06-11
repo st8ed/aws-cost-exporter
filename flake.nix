@@ -1,7 +1,7 @@
 {
   outputs = { self, nixpkgs }:
     let
-      version = "0.2.1";
+      version = "0.3.0";
       src = with lib; sources.cleanSourceWith {
         filter = name: type:
           let baseName = baseNameOf (toString name); in
