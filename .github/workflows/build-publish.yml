@@ -64,21 +64,21 @@ jobs:
 
     - name: Push image
       run: |
-        IMAGE_NAME=st8ed/aws-cost-exporter
-        IMAGE_ID=ghcr.io/${{ github.repository_owner }}/$IMAGE_NAME
+        IMAGE_SRC=st8ed/aws-cost-exporter
+        IMAGE_DEST=ghcr.io/st8ed/aws-cost-exporter
 
-        echo IMAGE_NAME=$IMAGE_NAME
-        echo IMAGE_ID=$IMAGE_ID
+        echo IMAGE_SRC=$IMAGE_SRC
+        echo IMAGE_DEST=$IMAGE_DEST
 
         echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
 
         docker load -i ./dist/image/*.tar.gz
 
-        docker tag $IMAGE_NAME:$VERSION $IMAGE_ID:$VERSION
-        docker push $IMAGE_ID:$VERSION
+        docker tag $IMAGE_SRC:$VERSION $IMAGE_DEST:$VERSION
+        docker push $IMAGE_DEST:$VERSION
 
-        docker tag $IMAGE_NAME:$VERSION $IMAGE_ID:latest
-        docker push $IMAGE_ID:latest
+        docker tag $IMAGE_SRC:$VERSION $IMAGE_DEST:latest
+        docker push $IMAGE_DEST:latest
 
     - name: Create release
       uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5
