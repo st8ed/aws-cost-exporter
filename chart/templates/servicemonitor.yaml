@@ -1,0 +1,21 @@
+{{- if and .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "aws-cost-exporter.fullname" . }}
+  namespace: monitoring
+  labels:
+    {{- include "aws-cost-exporter.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "aws-cost-exporter.labels" . | nindent 6 }}
+  endpoints:
+  - interval: {{ .Values.serviceMonitor.interval }}
+    path: /metrics
+    port: http-metrics
+    scheme: http
+{{- end }}

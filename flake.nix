@@ -1,27 +1,34 @@
 {
   outputs = { self, nixpkgs }:
     let
-      version = "0.3.0";
-      src = with lib; sources.cleanSourceWith {
-        filter = name: type:
-          let baseName = baseNameOf (toString name); in
-            !(
-              (baseName == ".github") ||
-              (hasSuffix ".nix" baseName) ||
-              (hasSuffix ".md" baseName)
-            );
-        src = lib.cleanSource ./.;
-      };
+      version = "0.3.1";
+      chartVersion = "0.1.2";
       vendorSha256 = "sha256-LZomE9j6m7TAPyY/sZWVupyh8mkt8MjwUnmbYzZoUP8=";
+      dockerPackageTag = "ghcr.io/st8ed/aws-cost-exporter:${version}";
+
+      src = with lib; builtins.path {
+        name = "aws-cost-exporter-src";
+        path = sources.cleanSourceWith {
+          filter = name: type:
+            let baseName = baseNameOf (toString name); in
+              !(
+                (baseName == ".github") ||
+                (hasSuffix ".nix" baseName) ||
+                (hasSuffix ".md" baseName) ||
+                (hasPrefix "${./.}/chart/" name)
+              );
+          src = lib.cleanSource ./.;
+        };
+      };
+
+      src-chart = with lib; builtins.path {
+        name = "aws-cost-exporter-chart-src";
+        path = lib.cleanSource ./chart;
+      };
 
       package = { go_1_17, buildGo117Module }: buildGo117Module {
         pname = "aws-cost-exporter";
-        inherit version vendorSha256;
-
-        src = builtins.path {
-          path = src;
-          name = "aws-cost-exporter-src";
-        };
+        inherit version vendorSha256 src;
 
         ldflags =
           let
@@ -87,6 +94,32 @@
         };
       };
 
+
+      helmChart = { pkgs, aws-cost-exporter-dockerImage, kubernetes-helm, skopeo, jq, gnused }: pkgs.runCommand "aws-cost-exporter-chart-${chartVersion}.tgz"
+        {
+          src = src-chart;
+          buildInputs = [ kubernetes-helm skopeo jq gnused ];
+        } ''
+        cp -r $src ./chart
+        chmod -R a+w ./chart
+
+        sed -i \
+          -e 's/^version: 0\.0\.0$/version: ${chartVersion}/' \
+          -e 's/^appVersion: "0\.0\.0"$/appVersion: "${version}"/' \
+          ./chart/Chart.yaml
+
+        digest=$(skopeo --tmpdir=. inspect docker-archive:${aws-cost-exporter-dockerImage} | jq -r '.Digest')
+
+        sed -i \
+          -e 's|^image:.*$|image: "${dockerPackageTag}@'$digest'"|' \
+          ./chart/values.yaml
+
+        mkdir -p ./package
+        helm package --destination ./package ./chart
+
+        mv ./package/*.tgz $out
+      '';
+
       inherit (nixpkgs) lib;
       supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
 
@@ -101,12 +134,14 @@
       overlay = pkgs: _: {
         aws-cost-exporter = pkgs.callPackage package { };
         aws-cost-exporter-dockerImage = pkgs.callPackage dockerPackage { };
+        aws-cost-exporter-helmChart = pkgs.callPackage helmChart { };
       };
 
       defaultPackage = forAllSystems (system: nixpkgsFor."${system}".aws-cost-exporter);
       packages = forAllSystems (system: {
         package = nixpkgsFor."${system}".aws-cost-exporter;
         dockerImage = nixpkgsFor."${system}".aws-cost-exporter-dockerImage;
+        helmChart = nixpkgsFor."${system}".aws-cost-exporter-helmChart;
       });
     };
 }

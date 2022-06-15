@@ -1,89 +1,123 @@
 name: "Build & Publish"
-on: [ pull_request, push ]
+on: [pull_request, push]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - uses: cachix/install-nix-action@v17
-      with:
-        nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/install-nix-action@v17
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
 
-    - uses: cachix/cachix-action@v10
-      with:
-        name: st8ed-oss
-        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+      - uses: cachix/cachix-action@v10
+        with:
+          name: st8ed-oss
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
-    - run: nix build .#package
-    - run: echo "PACKAGE_PATH=$(readlink -f result)" >>$GITHUB_ENV
-    - run: nix build .#dockerImage
-    - run: echo "IMAGE_PATH=$(readlink -f result)" >>$GITHUB_ENV
+      - name: Build
+      - run: |
+          nix build .#package
+          echo "PACKAGE_PATH=$(readlink -f result)" >>$GITHUB_ENV
 
-    - uses: actions/upload-artifact@v3
-      with:
-        name: aws-cost-exporter
-        path: ${{ env.PACKAGE_PATH }}
+          nix build .#dockerImage
+          echo "IMAGE_PATH=$(readlink -f result)" >>$GITHUB_ENV
 
-    - uses: actions/upload-artifact@v3
-      with:
-        name: aws-cost-exporter-image
-        path: ${{ env.IMAGE_PATH }}
+          nix build .#helmChart
+          echo "CHART_PATH=$(readlink -f result)" >>$GITHUB_ENV
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: aws-cost-exporter
+          path: ${{ env.PACKAGE_PATH }}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: aws-cost-exporter-image
+          path: ${{ env.IMAGE_PATH }}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: aws-cost-exporter-chart
+          path: ${{ env.CHART_PATH }}
 
   publish:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
-      packages: write # For GitHub Container Registry
-      contents: write # For GitHub Releases
+      packages: write     # For GitHub Container Registry
+      contents: write     # For GitHub Releases
     steps:
-    - uses: actions/download-artifact@v3
-      with:
-        name: aws-cost-exporter
-        path: ./dist/release
+      - uses: actions/download-artifact@v3
+        with:
+          name: aws-cost-exporter
+          path: ./dist/release
 
-    - uses: actions/download-artifact@v3
-      with:
-        name: aws-cost-exporter-image
-        path: ./dist/image
+      - uses: actions/download-artifact@v3
+        with:
+          name: aws-cost-exporter-image
+          path: ./dist/image
 
-    - name: Retrieve version
-      run: |
-        VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
-        VERSION=$(echo $VERSION | sed -e 's/^v//')
-        # [ "$VERSION" == "master" ] && VERSION=latest
+      - uses: actions/download-artifact@v3
+        with:
+          name: aws-cost-exporter-chart
+          path: ./dist/chart
 
-        echo "VERSION=$VERSION" >>$GITHUB_ENV
-        echo "VERSION=$VERSION"
+      - name: Retrieve version
+        run: |
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          VERSION=$(echo $VERSION | sed -e 's/^v//')
+          # [ "$VERSION" == "master" ] && VERSION=latest
 
-    - name: Package release
-      run: |
-        tar cf ./dist/aws-exporter-$VERSION.linux-amd64.tar.gz -C ./dist/release .
+          IMAGE_REPOSITORY=st8ed/aws-cost-exporter
 
-    - name: Push image
-      run: |
-        IMAGE_SRC=st8ed/aws-cost-exporter
-        IMAGE_DEST=ghcr.io/st8ed/aws-cost-exporter
+          echo "VERSION=$VERSION" >>$GITHUB_ENV
+          echo "VERSION=$VERSION"
 
-        echo IMAGE_SRC=$IMAGE_SRC
-        echo IMAGE_DEST=$IMAGE_DEST
+          echo "IMAGE_REPOSITORY=$IMAGE_REPOSITORY" >>$GITHUB_ENV
+          echo "IMAGE_REPOSITORY=$IMAGE_REPOSITORY"
 
-        echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+      - name: Package release
+        run: |
+          tar cf ./dist/aws-exporter-$VERSION.linux-amd64.tar.gz \
+            -C ./dist/release .
 
-        docker load -i ./dist/image/*.tar.gz
+      - name: Load image
+        run: |
+          docker load -i ./dist/image/*.tar.gz
+          docker tag $IMAGE_REPOSITORY:$VERSION $IMAGE_REPOSITORY:latest
 
-        docker tag $IMAGE_SRC:$VERSION $IMAGE_DEST:$VERSION
-        docker push $IMAGE_DEST:$VERSION
+      - name: Log in to Docker Hub
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-        docker tag $IMAGE_SRC:$VERSION $IMAGE_DEST:latest
-        docker push $IMAGE_DEST:latest
+      - name: Log in to the Container registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Create release
-      uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5
-      with:
-        name: Release ${{ env.VERSION }}
-        files: ./dist/aws-exporter-*.tar.gz
-        fail_on_unmatched_files: true
-        generate_release_notes: true
+      - name: Push image
+        run:
+          docker push $IMAGE_REPOSITORY:$VERSION
+          docker push $IMAGE_REPOSITORY:$VERSION $IMAGE_REPOSITORY:latest
+
+          docker push $IMAGE_REPOSITORY:$VERSION \
+            ghcr.io/$IMAGE_REPOSITORY:$VERSION
+          docker push $IMAGE_REPOSITORY:$VERSION \
+            ghcr.io/$IMAGE_REPOSITORY:latest
+
+      - name: Create release
+        uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5
+        with:
+          name: Release ${{ env.VERSION }}
+          files: |
+            ./dist/aws-exporter-*.tar.gz
+            ./dist/chart/*.tgz
+          fail_on_unmatched_files: true
+          generate_release_notes: true
