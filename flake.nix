@@ -4,18 +4,18 @@
       version = "0.3.1";
       chartVersion = "0.1.2";
       vendorSha256 = "sha256-LZomE9j6m7TAPyY/sZWVupyh8mkt8MjwUnmbYzZoUP8=";
-      dockerPackageTag = "ghcr.io/st8ed/aws-cost-exporter:${version}";
+      dockerPackageTag = "st8ed/aws-cost-exporter:${version}";
 
       src = with lib; builtins.path {
         name = "aws-cost-exporter-src";
-        path = sources.cleanSourceWith {
+        path = sources.cleanSourceWith rec {
           filter = name: type:
             let baseName = baseNameOf (toString name); in
               !(
                 (baseName == ".github") ||
                 (hasSuffix ".nix" baseName) ||
                 (hasSuffix ".md" baseName) ||
-                (hasPrefix "${./.}/chart/" name)
+                (hasPrefix "${src}/chart" name)
               );
           src = lib.cleanSource ./.;
         };
@@ -142,6 +142,8 @@
         package = nixpkgsFor."${system}".aws-cost-exporter;
         dockerImage = nixpkgsFor."${system}".aws-cost-exporter-dockerImage;
         helmChart = nixpkgsFor."${system}".aws-cost-exporter-helmChart;
+
+        inherit src src-chart;
       });
     };
 }
