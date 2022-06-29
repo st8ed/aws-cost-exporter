@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  aws-cost-exporter:
+  - apiVersion: v2
+    appVersion: 0.3.3
+    created: "2022-06-30T02:45:16.939164736+03:00"
+    description: An exporter for AWS Cost and Usage Reports
+    digest: f4f47f8fea412fcec55bd87f3ce26ad199470f4f1ea51d12e85737fc7cc3797f
+    name: aws-cost-exporter
+    type: application
+    urls:
+    - https://github.com/st8ed/aws-cost-exporter/releases/download/v0.3.3/aws-cost-exporter-chart-0.1.4.tgz
+    version: 0.1.4
+generated: "2022-06-30T02:45:16.938082571+03:00"
