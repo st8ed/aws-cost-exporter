@@ -70,13 +70,8 @@ jobs:
           VERSION=$(echo $VERSION | sed -e 's/^v//')
           # [ "$VERSION" == "master" ] && VERSION=latest
 
-          IMAGE_REPOSITORY=st8ed/aws-cost-exporter
-
           echo "VERSION=$VERSION" >>$GITHUB_ENV
           echo "VERSION=$VERSION"
-
-          echo "IMAGE_REPOSITORY=$IMAGE_REPOSITORY" >>$GITHUB_ENV
-          echo "IMAGE_REPOSITORY=$IMAGE_REPOSITORY"
 
       - name: Package release
         run: |
@@ -87,11 +82,6 @@ jobs:
           echo "chart=$chart"
           mv -v ./dist/chart/*.tgz ./dist/$chart
 
-      - name: Load image
-        run: |
-          docker load -i ./dist/image/*.tar.gz
-          docker tag $IMAGE_REPOSITORY:$VERSION $IMAGE_REPOSITORY:latest
-
       - name: Log in to Docker Hub
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
         with:
@@ -100,11 +90,15 @@ jobs:
 
       - name: Push image
         run: |
-          docker push $IMAGE_REPOSITORY:$VERSION
-          docker push $IMAGE_REPOSITORY:latest
+          # --preserve-digests \
+          skopeo copy \
+            --digestfile /dev/stdout \
+            dir:./dist/image \
+            docker://index.docker.io/st8ed/aws-cost-exporter:$VERSION
 
       - name: Create release
         uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5
+        if: ${{ !endsWith(github.ref, '-rc') }}
         with:
           name: Release ${{ env.VERSION }}
           files: |

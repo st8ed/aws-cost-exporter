@@ -56,49 +56,65 @@
         };
       };
 
-      dockerPackage = { aws-cost-exporter, dockerTools, cacert, runCommandNoCC }: dockerTools.buildLayeredImage {
-        name = "st8ed/aws-cost-exporter";
-        tag = "${version}";
+      dockerPackage = { pkgs, aws-cost-exporter, dockerTools, cacert, skopeo, moreutils, runCommandNoCC }:
+        let
+          # We compress image layers so the digest
+          # will be reproducible when pushing to registry
+          buildCompressedImage = stream: runCommandNoCC "aws-cost-exporter-dockerImage"
+            {
+              buildInputs = [ skopeo moreutils ];
+            } ''
+            # Piping archive stream to skopeo isn't working correctly
+            ${stream} > archive.tar
 
-        contents = [
-          aws-cost-exporter
-        ];
+            skopeo --insecure-policy copy docker-archive:./archive.tar dir:$out \
+              --format v2s2 \
+              --dest-compress
+          '';
 
-        fakeRootCommands = ''
-          install -dm750 -o 1000 -g 1000  \
-            ./etc/aws-cost-exporter       \
-            ./var/lib/aws-cost-exporter
+        in
+        buildCompressedImage (dockerTools.streamLayeredImage {
+          name = "st8ed/aws-cost-exporter";
+          tag = "${version}";
 
-          cp -r \
-            ${aws-cost-exporter}/share/aws-cost-exporter/* \
-            ./etc/aws-cost-exporter
-        '';
-
-        config = {
-          Entrypoint = [ "/bin/aws-cost-exporter" ];
-          Cmd = [ ];
-          User = "1000:1000";
-          WorkingDir = "/var/lib/aws-cost-exporter";
-
-          Env = [
-            "SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt"
+          contents = [
+            aws-cost-exporter
           ];
 
-          ExposedPorts = {
-            "9100/tcp" = { };
+          fakeRootCommands = ''
+            install -dm750 -o 1000 -g 1000  \
+              ./etc/aws-cost-exporter       \
+              ./var/lib/aws-cost-exporter
+
+            cp -r \
+              ${aws-cost-exporter}/share/aws-cost-exporter/* \
+              ./etc/aws-cost-exporter
+          '';
+
+          config = {
+            Entrypoint = [ "/bin/aws-cost-exporter" ];
+            Cmd = [ ];
+            User = "1000:1000";
+            WorkingDir = "/var/lib/aws-cost-exporter";
+
+            Env = [
+              "SSL_CERT_FILE=${cacert}/etc/ssl/certs/ca-bundle.crt"
+            ];
+
+            ExposedPorts = {
+              "9100/tcp" = { };
+            };
+
+            Volumes = {
+              "/var/lib/aws-cost-exporter" = { };
+            };
           };
+        });
 
-          Volumes = {
-            "/var/lib/aws-cost-exporter" = { };
-          };
-        };
-      };
-
-
-      helmChart = { pkgs, aws-cost-exporter-dockerImage, kubernetes-helm, skopeo, jq, gnused }: pkgs.runCommand "aws-cost-exporter-chart-${chartVersion}.tgz"
+      helmChart = { pkgs, aws-cost-exporter-dockerImage, kubernetes-helm, jq, gnused }: pkgs.runCommand "aws-cost-exporter-chart-${chartVersion}.tgz"
         {
           src = src-chart;
-          buildInputs = [ kubernetes-helm skopeo jq gnused ];
+          buildInputs = [ kubernetes-helm jq gnused ];
         } ''
         cp -r $src ./chart
         chmod -R a+w ./chart
@@ -108,7 +124,8 @@
           -e 's/^appVersion: "0\.0\.0"$/appVersion: "${version}"/' \
           ./chart/Chart.yaml
 
-        digest=$(skopeo --tmpdir=. inspect docker-archive:${aws-cost-exporter-dockerImage} | jq -r '.Digest')
+        digest="sha256:$(sha256sum "${aws-cost-exporter-dockerImage}/manifest.json" | cut -d' ' -f1)"
+        echo "Digest: $digest"
 
         sed -i \
           -e 's|^image:.*$|image: "${dockerPackageTag}@'$digest'"|' \
