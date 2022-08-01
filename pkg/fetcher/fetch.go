@@ -180,7 +180,7 @@ func FetchReport(config *state.Config, client *s3.Client, manifest *ReportManife
 				// only for first report partition
 				headerReader := bufio.NewReaderSize(zr, 1)
 
-				if s, err := headerReader.ReadString('\n'); err != nil {
+				if _, err := headerReader.ReadString('\n'); err != nil {
 					writeErr <- err
 					return
 				}
