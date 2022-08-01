@@ -178,8 +178,12 @@ func FetchReport(config *state.Config, client *s3.Client, manifest *ReportManife
 			if reportPart > 0 {
 				// Keep table header (first csv line)
 				// only for first report partition
-				scanner := bufio.NewScanner(zr)
-				scanner.Scan()
+				headerReader := bufio.NewReaderSize(zr, 1)
+
+				if s, err := headerReader.ReadString('\n'); err != nil {
+					writeErr <- err
+					return
+				}
 			}
 
 			if _, err := io.Copy(f, zr); err != nil {
