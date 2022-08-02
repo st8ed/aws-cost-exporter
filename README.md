@@ -13,7 +13,7 @@ for AWS Cost and Usage Reports
 
 ## Deployment
 
-The exporter analyzes billing report data stored automatically by AWS in S3 bucket, so report delivery should be [configured](#configuration) prior deployment.
+Report delivery to S3 bucket should be [configured](#setup-aws) prior deployment.
 
 Examples below use following shell variables:
 
@@ -55,14 +55,14 @@ helm install \
 
 Deploy locally:
 ```bash
-    aws-cost-exporter \
-        --bucket $report_bucket \
-        --report $report_name
+aws-cost-exporter \
+    --bucket $report_bucket \
+    --report $report_name
 ```
 
 ## Usage
 
-Exported metrics are labelled accordingly to [SQL query](https://github.com/st8ed/aws-cost-exporter/blob/main/configs/queries/common.sql), which itself
+Exported metrics are labelled according to [SQL query](https://github.com/st8ed/aws-cost-exporter/blob/main/configs/queries/common.sql), which itself
 is configurable. See [original column descriptions](https://docs.aws.amazon.com/cur/latest/userguide/data-dictionary.html) for details.
 
 ```
@@ -96,7 +96,7 @@ Flags:
       --version            Show application version.
 ```
 
-## Configuration
+## Setup AWS
 Create a Cost and Usage report following official [instructions](https://docs.aws.amazon.com/cur/latest/userguide/cur-create.html). Alternatively you can setup AWS resources [using AWS CLI](#configure-with-aws-cli). Some configuration values are necessary for the exporter to work:
 
 - Report data integration must be **disabled**, so reports are gzipped csv files
@@ -105,7 +105,7 @@ Create a Cost and Usage report following official [instructions](https://docs.aw
 
 You also need to setup proper IAM user with read access to S3 bucket.
 
-## Configuration with AWS CLI
+## Setup AWS with AWS CLI
 Equivalently you can create a report using AWS CLI (see `aws cur put-report-definition`). An example of suitable report definition:
 
 ```json
@@ -129,3 +129,30 @@ Equivalently you can create a report using AWS CLI (see `aws cur put-report-defi
     ]
 }
 ```
+
+## How it works
+
+Internally the exporter analyzes AWS CUR Manifest file in S3 bucket and locally synchronizes most recent CSV report file.
+The synchronized files are stored indefinitely in path specified in `--repository`.
+
+On each scrape, a HEAD request is performed to check if AWS CUR Manifest is updated.
+After synchronization, a SQL query using `csvq` is ran. The query result is exported as metrics with `metric_` prefix marking the columns to export.
+
+
+## How to build
+
+[Nix](https://nixos.org/) is used for fully reproducible build.
+
+```bash
+# Build docker image
+nix build .#dockerImage
+
+# Build chart
+nix build .#helmChart
+```
+
+## Alternatives
+
+Most publicly available alternatives use AWS Cost Explorer API, which costs money
+for each API request. AWS Cost and Usage Reports is free, only a very small fee is
+charged for S3 usage.
