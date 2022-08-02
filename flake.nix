@@ -15,7 +15,7 @@
                 (baseName == ".github") ||
                 (hasSuffix ".nix" baseName) ||
                 (hasSuffix ".md" baseName) ||
-                (hasPrefix "${src}/chart" name)
+                (hasPrefix "${src}/deployments" name)
               );
           src = lib.cleanSource ./.;
         };
@@ -23,7 +23,7 @@
 
       src-chart = with lib; builtins.path {
         name = "aws-cost-exporter-chart-src";
-        path = lib.cleanSource ./chart;
+        path = lib.cleanSource ./deployments/chart;
       };
 
       package = { go_1_17, buildGo117Module }: buildGo117Module {
