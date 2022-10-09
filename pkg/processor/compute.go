@@ -27,7 +27,7 @@ func Compute(config *state.Config, registry *prometheus.Registry, logger log.Log
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Minute)
 	defer cancel()
 
 	db, err := sql.Open("csvq", config.RepositoryPath)
