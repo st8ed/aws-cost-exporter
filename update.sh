@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -ex
 
-VERSION=0.3.5
-CHART_VERSION=0.1.5
+VERSION=0.3.6
+CHART_VERSION=0.1.6
 
 URL_BASE="https://github.com/st8ed/aws-cost-exporter/releases/download/v$VERSION"
 CHART_FILE="aws-cost-exporter-chart-$CHART_VERSION.tgz"
