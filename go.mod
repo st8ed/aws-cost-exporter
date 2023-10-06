@@ -1,6 +1,6 @@
 module github.com/st8ed/aws-cost-exporter
 
-go 1.17
+go 1.19
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.16.8
@@ -12,6 +12,7 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.37.0
 	github.com/prometheus/exporter-toolkit v0.7.1
+	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 )
 
@@ -46,7 +47,6 @@ require (
 	github.com/mithrandie/csvq v1.17.8 // indirect
 	github.com/mithrandie/go-file/v2 v2.1.0 // indirect
 	github.com/mithrandie/go-text v1.5.4 // indirect
-	github.com/mithrandie/readline-csvq v1.2.0 // indirect
 	github.com/mithrandie/ternary v1.1.1 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
 	github.com/pkg/errors v0.9.1 // indirect

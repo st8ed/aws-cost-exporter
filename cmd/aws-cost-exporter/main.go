@@ -1,44 +1,68 @@
 package main
 
 import (
-	"github.com/st8ed/aws-cost-exporter/pkg/collector"
-	"github.com/st8ed/aws-cost-exporter/pkg/fetcher"
-	"github.com/st8ed/aws-cost-exporter/pkg/processor"
-	"github.com/st8ed/aws-cost-exporter/pkg/state"
-
 	"context"
+	"net/http"
+	"os"
 	"os/user"
+	"sync/atomic"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/version"
-
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
-
-	"net/http"
-	"os"
-
+	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
-
+	"golang.org/x/sync/errgroup"
 	kingpin "gopkg.in/alecthomas/kingpin.v2"
+
+	"github.com/st8ed/aws-cost-exporter/pkg/collector"
+	"github.com/st8ed/aws-cost-exporter/pkg/fetcher"
+	"github.com/st8ed/aws-cost-exporter/pkg/processor"
+	"github.com/st8ed/aws-cost-exporter/pkg/state"
 )
 
-func newGatherer(config *state.Config, state *state.State, client *s3.Client, disableExporterMetrics bool, logger log.Logger) (prometheus.GathererFunc, error) {
-	reg := prometheus.NewRegistry()
+type intervalGatherer struct {
+	gatherer prometheus.Gatherer
+	cache    atomic.Pointer[[]*dto.MetricFamily]
+}
 
-	if !disableExporterMetrics {
-		reg.MustRegister(collectors.NewBuildInfoCollector())
-		reg.MustRegister(collectors.NewGoCollector(
-			collectors.WithGoCollections(collectors.GoRuntimeMemStatsCollection | collectors.GoRuntimeMetricsCollection),
-		))
+// Gather implements prometheus.Gatherer.
+func (ig *intervalGatherer) Gather() ([]*dto.MetricFamily, error) {
+	mfs := ig.cache.Load()
+	if mfs == nil {
+		return nil, nil
 	}
+	return *mfs, nil
+}
+
+// Run will gather metrics from the gatherer at the given interval until the context is done.
+func (ig *intervalGatherer) Run(ctx context.Context, interval time.Duration) error {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		mfs, err := ig.gatherer.Gather()
+		if err != nil {
+			return err
+		}
+		ig.cache.Store(&mfs)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+func newGatherer(ctx context.Context, interval time.Duration, config *state.Config, state *state.State, client *s3.Client, logger log.Logger) (prometheus.Gatherer, error) {
+	reg := prometheus.NewRegistry()
 
 	periods, err := fetcher.GetBillingPeriods(config, client)
 	if err != nil {
@@ -55,11 +79,15 @@ func newGatherer(config *state.Config, state *state.State, client *s3.Client, di
 		return nil, err
 	}
 
-	if err := processor.Compute(config, reg, logger); err != nil {
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, interval)
+	defer cancel()
+	if err := processor.Compute(ctxWithTimeout, config, reg, logger); err != nil {
 		return nil, err
 	}
 
 	return prometheus.GathererFunc(func() ([]*dto.MetricFamily, error) {
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, interval)
+		defer cancel()
 		if len(state.Periods) > 0 {
 			period := state.Periods[len(state.Periods)-1]
 
@@ -83,7 +111,7 @@ func newGatherer(config *state.Config, state *state.State, client *s3.Client, di
 					return nil, err
 				}
 
-				if err := processor.Compute(config, reg, logger); err != nil {
+				if err := processor.Compute(ctxWithTimeout, config, reg, logger); err != nil {
 					return nil, err
 				}
 			}
@@ -99,6 +127,11 @@ func main() {
 			"bucket",
 			"Name of the S3 bucket with detailed billing report(s)",
 		).Required().String()
+
+		interval = kingpin.Flag(
+			"interval",
+			"How long to wait between background computations of the billing report.",
+		).Default("5m").Duration()
 
 		reportName = kingpin.Flag(
 			"report",
@@ -179,14 +212,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	gatherer, err := newGatherer(config, state, client, *disableExporterMetrics, logger)
+	g, ctx := errgroup.WithContext(context.Background())
+
+	gatherer, err := newGatherer(ctx, *interval, config, state, client, logger)
 	if err != nil {
 		level.Error(logger).Log("err", err)
 		os.Exit(1)
 	}
 
+	gatherer = &intervalGatherer{
+		gatherer: gatherer,
+	}
+	gatherers := prometheus.Gatherers{gatherer}
+	if !*disableExporterMetrics {
+		reg := prometheus.NewRegistry()
+		reg.MustRegister(collectors.NewBuildInfoCollector())
+		reg.MustRegister(collectors.NewGoCollector(
+			collectors.WithGoCollections(collectors.GoRuntimeMemStatsCollection | collectors.GoRuntimeMetricsCollection),
+		))
+		gatherers = append(gatherers, reg)
+	}
+
+	g.Go(func() error {
+		return gatherer.(*intervalGatherer).Run(ctx, *interval)
+	})
+
 	http.Handle(*metricsPath, promhttp.HandlerFor(
-		gatherer,
+		gatherers,
 		promhttp.HandlerOpts{
 			EnableOpenMetrics: true,
 		},
@@ -203,7 +255,22 @@ func main() {
 
 	level.Info(logger).Log("msg", "Listening on", "address", *listenAddress)
 	server := &http.Server{Addr: *listenAddress}
-	if err := web.ListenAndServe(server, *configFile, logger); err != nil {
+	g.Go(func() error {
+		return web.ListenAndServe(server, *configFile, logger)
+	})
+
+	go func() {
+		// If the group's context is cancelled, then one of the
+		// concurrent goroutines returned an error or both finished.
+		// Clean up all of the goroutines to make sure that `Wait`
+		// will return and the program can exit. The intervalGatherer
+		// will already be stopped by virtue of the context being done
+		// so we just need to ensure that the server is shutdown.
+		<-ctx.Done()
+		server.Shutdown(context.Background())
+	}()
+
+	if err := g.Wait(); err != nil {
 		level.Error(logger).Log("err", err)
 		os.Exit(1)
 	}
