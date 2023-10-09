@@ -1,8 +1,8 @@
 {
   outputs = { self, nixpkgs }:
     let
-      version = "0.3.6";
-      chartVersion = "0.1.6";
+      version = "0.3.7";
+      chartVersion = "0.1.7";
       vendorSha256 = "sha256-e3AUY+qKnLEugLviQxTK1Dj6mIuo2oCu8pmjuLqrbio=";
       dockerPackageTag = "st8ed/aws-cost-exporter:${version}";
 
