@@ -2,11 +2,11 @@ select
     (`bill/BillingPeriodStartDate` || "-" || `bill/BillingPeriodEndDate`)  as `period`,
 
     `product/ProductName` as `product`,
-    `lineItem/Operation` as `operation`,
+    COALESCE(`lineItem/Operation`, "") as `operation`,
     `lineItem/LineItemType` as `item_type`,
 
-    `lineItem/UsageType` as `usage_type`,
-    `pricing/unit` as `usage_unit`,
+    COALESCE(`product/usagetype`, "") as `usage_type`,
+    COALESCE(`pricing/unit`, "") as `usage_unit`,
     SUM(`lineItem/UsageAmount`) as metric_amount,
 
     SUM(`lineItem/UnblendedCost`) as metric_cost,
@@ -20,7 +20,7 @@ group by
     `lineItem/Operation`,
     `lineItem/LineItemType`,
 
-    `lineItem/UsageType`,
+    `product/usagetype`,
     `pricing/unit`,
     `lineItem/CurrencyCode`
 order by `period`, `product`, `operation`
