@@ -26,7 +26,7 @@
         path = lib.cleanSource ./deployments/chart;
       };
 
-      package = { go_1_17, buildGo117Module }: buildGo117Module {
+      package = { go_1_18, buildGo118Module }: buildGo118Module {
         pname = "aws-cost-exporter";
         inherit version vendorSha256 src;
 
@@ -41,7 +41,7 @@
             "-X ${t}.Branch=unknown"
             "-X ${t}.BuildUser=nix@nixpkgs"
             "-X ${t}.BuildDate=unknown"
-            "-X ${t}.GoVersion=${lib.getVersion go_1_17}"
+            "-X ${t}.GoVersion=${lib.getVersion go_1_18}"
           ];
 
         preInstall = ''
