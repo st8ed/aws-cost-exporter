@@ -67,7 +67,10 @@ func Compute(config *state.Config, registry *prometheus.Registry, logger log.Log
 		}
 
 		level.Debug(logger).Log("msg", "Updating metrics registry")
-		ingestMetrics(registry, rows)
+		err = ingestMetrics(registry, rows)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
