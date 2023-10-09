@@ -8,6 +8,8 @@ for AWS Cost and Usage Reports
 
 **Project status: *alpha***. All planned features are completed.
 
+**NOTICE: This project is not affiliated, associated, authorized, endorsed by, or in any way officially connected with Amazon, Amazon Web Services (AWS), or any of its subsidiaries or its affiliates. This project will soon be renamed to `cloud-cost-exporter`.**
+
 ### [Homepage](https://github.com/st8ed/aws-cost-exporter)
 ### [Example](https://raw.githubusercontent.com/st8ed/aws-cost-exporter/gh-pages/assets/demo.png)
 
