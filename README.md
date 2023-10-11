@@ -74,6 +74,8 @@ Flags:
   -h, --help               Show context-sensitive help (also try --help-long and
                            --help-man).
       --bucket=BUCKET      Name of the S3 bucket with detailed billing report(s)
+      --interval=5m        How long to wait between background computations of
+                           the billing report.
       --report=REPORT      Name of the AWS detailed billing report in supplied
                            S3 bucket
       --repository="/var/lib/aws-cost-exporter/repository"

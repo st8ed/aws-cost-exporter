@@ -3,7 +3,7 @@
     let
       version = "0.3.7";
       chartVersion = "0.1.7";
-      vendorSha256 = "sha256-e3AUY+qKnLEugLviQxTK1Dj6mIuo2oCu8pmjuLqrbio=";
+      vendorSha256 = "sha256-Z1+aopvpfPL+k0HHF8uR9QJdcawlocsV4IxwSkH/akw=";
       dockerPackageTag = "st8ed/aws-cost-exporter:${version}";
 
       src = with lib; builtins.path {
@@ -26,7 +26,7 @@
         path = lib.cleanSource ./deployments/chart;
       };
 
-      package = { go_1_18, buildGo118Module }: buildGo118Module {
+      package = { go_1_19, buildGo119Module }: buildGo119Module {
         pname = "aws-cost-exporter";
         inherit version vendorSha256 src;
 
@@ -41,7 +41,7 @@
             "-X ${t}.Branch=unknown"
             "-X ${t}.BuildUser=nix@nixpkgs"
             "-X ${t}.BuildDate=unknown"
-            "-X ${t}.GoVersion=${lib.getVersion go_1_18}"
+            "-X ${t}.GoVersion=${lib.getVersion go_1_19}"
           ];
 
         preInstall = ''

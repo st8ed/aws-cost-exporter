@@ -17,18 +17,13 @@ import (
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 
-	"time"
-
 	_ "github.com/mithrandie/csvq-driver"
 )
 
-func Compute(config *state.Config, registry *prometheus.Registry, logger log.Logger) error {
+func Compute(ctx context.Context, config *state.Config, registry *prometheus.Registry, logger log.Logger) error {
 	if err := updateSymlinks(config); err != nil {
 		return err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Minute)
-	defer cancel()
 
 	db, err := sql.Open("csvq", config.RepositoryPath)
 	if err != nil {
