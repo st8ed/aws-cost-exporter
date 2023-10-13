@@ -20,8 +20,9 @@ import (
 	"github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
+	"github.com/prometheus/exporter-toolkit/web/kingpinflag"
 	"golang.org/x/sync/errgroup"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	kingpin "github.com/alecthomas/kingpin/v2"
 
 	"github.com/st8ed/aws-cost-exporter/pkg/collector"
 	"github.com/st8ed/aws-cost-exporter/pkg/fetcher"
@@ -153,11 +154,6 @@ func main() {
 			"Path to store exporter state",
 		).Default("/var/lib/aws-cost-exporter/state.json").String()
 
-		listenAddress = kingpin.Flag(
-			"web.listen-address",
-			"Address on which to expose metrics and web interface.",
-		).Default(":9100").String()
-
 		metricsPath = kingpin.Flag(
 			"web.telemetry-path",
 			"Path under which to expose metrics.",
@@ -168,10 +164,7 @@ func main() {
 			"Exclude metrics about the exporter itself (promhttp_*, process_*, go_*).",
 		).Bool()
 
-		configFile = kingpin.Flag(
-			"web.config",
-			"[EXPERIMENTAL] Path to config yaml file that can enable TLS or authentication.",
-		).Default("").String()
+		toolkitFlags = kingpinflag.AddFlags(kingpin.CommandLine, ":9100")
 	)
 
 	promlogConfig := &promlog.Config{}
@@ -253,10 +246,9 @@ func main() {
 			</html>`))
 	})
 
-	level.Info(logger).Log("msg", "Listening on", "address", *listenAddress)
-	server := &http.Server{Addr: *listenAddress}
+	server := &http.Server{}
 	g.Go(func() error {
-		return web.ListenAndServe(server, *configFile, logger)
+		return web.ListenAndServe(server, toolkitFlags, logger)
 	})
 
 	go func() {

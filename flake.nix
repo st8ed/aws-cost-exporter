@@ -3,7 +3,7 @@
     let
       version = "0.3.7";
       chartVersion = "0.1.7";
-      vendorSha256 = "sha256-Z1+aopvpfPL+k0HHF8uR9QJdcawlocsV4IxwSkH/akw=";
+      vendorSha256 = "sha256-U4Yh+VNS1lBz4wwPl7q4RlYZdvRdj3IBS5P3XxlzrVI=";
       dockerPackageTag = "st8ed/aws-cost-exporter:${version}";
 
       src = with lib; builtins.path {
